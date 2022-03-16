@@ -1,0 +1,82 @@
+---
+title: "FBI_Crime_Supervised"
+author: "Dave"
+date: "3/16/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(plyr)
+library(papeR)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(kableExtra)
+library(tidyr)
+library(readxl)
+library(data.table)
+# library(foreign)
+# library(multcomp)
+# library(broom)
+# library(nlme)
+# library(tidyverse)
+# library(stargazer)
+# library(reshape2)
+# library(rmarkdown)
+# library(psych)
+library(RColorBrewer)
+# library(minpack.lm)
+# library(numDeriv)
+# # library(mosaic)
+# library(pracma)
+# library(formattable)
+# library(lme4)
+# library(sjPlot)
+# library(emmeans)
+# library(Cairo) # Cleans up plot Alias CairoWIN() use ggsave "cairo-png"
+knitr::opts_chunk$set(dev.args = list(png = list(type = "cairo")))
+
+```
+
+Get dataset from FBI
+```{r}
+# each xls sheet has that year and the previous year. Download 2010, 2012, 2014, 2016. 2018, 2019
+urls = c('https://ucr.fbi.gov/crime-in-the-u.s/2010/crime-in-the-u.s.-2010/tables/10tbl04.xls/output.xls',
+         'https://ucr.fbi.gov/crime-in-the-u.s/2012/crime-in-the-u.s.-2012/tables/4tabledatadecoverviewpdf/table_4_crime_in_the_united_states_by_region_geographic_division_and_state_2011-2012.xls/output.xls',
+         'https://ucr.fbi.gov/crime-in-the-u.s/2014/crime-in-the-u.s.-2014/tables/table-4/table_4_crime_in_the_united_states_by_region_geographic_division_and_state_2013-2014.xls/output.xls',
+         'https://ucr.fbi.gov/crime-in-the-u.s/2016/crime-in-the-u.s.-2016/tables/table-2/table-2.xls/output.xls',
+         'https://ucr.fbi.gov/crime-in-the-u.s/2018/crime-in-the-u.s.-2018/tables/table-4/table-4.xls/output.xls',
+         'https://ucr.fbi.gov/crime-in-the-u.s/2019/crime-in-the-u.s.-2019/tables/table-4/table-4.xls/output.xls')
+Crime.list = list()
+for (i in seq_along(urls)) {
+  download.file(urls[i], 'tmp.xls', mode = 'wb') # download xls from FBI website
+  Crime.list[[i]] = data.table(read_excel('tmp.xls', skip = 3)) # read into R list
+  # remove empty columns
+  Crime.list[[i]] = Crime.list[[i]][,which(unlist(lapply(Crime.list[[i]], function(x)!all(is.na(x))))),with=F]
+  
+  #rename columns leading with '..#'
+  cols.fix =  startsWith(colnames(Crime.list[[i]]), prefix = '..') # cols leading with '..'
+  setnames(Crime.list[[i]], names(Crime.list[[i]][,..cols.fix]),  rep('Per_100k', sum(cols.fix))) # rename '..' with 'Per_100k'
+  
+  Crime.list[[i]] = Crime.list[[i]][Year != 'Percent change']# remove present change rows
+  
+  # rename Area rows for each year
+  Crime.list
+  area.rowname = 2
+  area.rename 
+  for (ii in 1:Crime.list[[1]][,.N]) {
+    Crime.list[[1]][3,1] = Crime.list[[1]][2,1]
+  }
+
+  
+}
+  read_excel('10tbl04.xls')
+```
+I have crime by state, and region in time series (2009 - 2019). 
+Use 2009 - 2017 as training set, 2018 & 2019 as test set. 
+What do I want to predict? 
+Unsupervised first? 
+1) PCA - maybe find another feature to make predictions? 
+2) Herarchical Clusters
