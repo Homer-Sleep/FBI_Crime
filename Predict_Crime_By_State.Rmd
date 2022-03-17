@@ -40,6 +40,8 @@ knitr::opts_chunk$set(dev.args = list(png = list(type = "cairo")))
 
 ```
 
+
+
 Get dataset from FBI
 ```{r}
 # each xls sheet has that year and the previous year. Download 2010, 2012, 2014, 2016. 2018, 2019
@@ -50,13 +52,29 @@ urls = c('https://ucr.fbi.gov/crime-in-the-u.s/2010/crime-in-the-u.s.-2010/table
          'https://ucr.fbi.gov/crime-in-the-u.s/2018/crime-in-the-u.s.-2018/tables/table-4/table-4.xls/output.xls',
          'https://ucr.fbi.gov/crime-in-the-u.s/2019/crime-in-the-u.s.-2019/tables/table-4/table-4.xls/output.xls')
 Year.crime = list()
-for (i in seq_along(urls)) {
+ for (i in seq_along(urls)) {
+
   Crime.raw = NULL
+  ################### if statement to find if file is in WD, if not download######################
   download.file(urls[i], 'tmp.xls', mode = 'wb') # download xls from FBI website
-  Crime.raw = data.table(read_excel('tmp.xls', skip = 3)) # read into R list
+  Crime.raw = data.table(read_excel('tmp.xls', skip = 3)) # read into data.table
+  # Crime.raw = data.table(read_excel('10tbl04.xls', skip = 3)) # read into data.table
   # remove empty columns
   Crime.raw = Crime.raw[,which(unlist(lapply(Crime.raw, function(x)!all(is.na(x))))),with=F]
   
+  # rename cols to be the same across data sets
+  # fix these names: "Population1" "Violent crime_Per100k" "Murder and\nnonnegligent\nmanslaughter_Per100k" "Forcible rape_Per100k"                         
+  pop.fix = startsWith(colnames(Crime.raw), prefix = 'Pop')
+  setnames(Crime.raw, colnames(Crime.raw[,..pop.fix]), 'Population')
+  pop.fix = startsWith(colnames(Crime.raw), prefix = 'Murder')
+  setnames(Crime.raw, colnames(Crime.raw[,..pop.fix]), 'Murder')
+  pop.fix = startsWith(colnames(Crime.raw), prefix = 'Violent')
+  setnames(Crime.raw, colnames(Crime.raw[,..pop.fix]), 'Violent.Crime')
+  
+  ############## i = 3 Rape has two types legacy and revised ######################
+  pop.fix = startsWith(colnames(Crime.raw), prefix = 'Forcible')
+  if(sum(pop.fix) > 1){pop.fix = startsWith(colnames(Crime.raw), prefix = 'Rape')}
+  setnames(Crime.raw, colnames(Crime.raw[,..pop.fix]), 'Rape')
   
   #rename columns leading with '..#'
   # find col with Name
@@ -72,6 +90,15 @@ for (i in seq_along(urls)) {
   rm.col=  !endsWith(colnames(Crime.raw), suffix = '_Per100k_Per100k') # extra cols will have extra per100k
   Crime.raw = Crime.raw[,..rm.col]# remove cols
   
+  #remove cols of raw numbers, leave per100k for comparisons across states
+  rm.col = endsWith(colnames(Crime.raw), suffix = '_Per100k')
+  rm.col[1:3] = TRUE # keep first 3 rows of Area, year and population 
+  Crime.raw = Crime.raw[,..rm.col]
+  # Remove numbers  and comma from Area
+  Crime.raw$Area = gsub('[0-9]', '', Crime.raw$Area)
+  Crime.raw$Area = gsub(',', '', Crime.raw$Area)
+
+  # edit rows:
   Crime.raw = Crime.raw[Year != 'Percent change']# remove percent change rows
   
   # If Area name is NA, rename it to row above
@@ -80,6 +107,12 @@ for (i in seq_along(urls)) {
       Crime.raw[ii, 1] = Crime.raw[ii-1, 1]
     }
   }
+  # change to numeric
+  Crime.raw[,2:ncol(Crime.raw)] = as.data.table(sapply(Crime.raw[,2:ncol(Crime.raw)], as.numeric))
+  
+  ################# Round each col, I have a function for this ###########################
+    Crime.raw %>% mutate_if(is.numeric, ~round(., digit = 2))  
+
   two.years = unique(Crime.raw$Year)
   Year.crime[[two.years[1]]] = Crime.raw[Year == two.years[1]]
   Year.crime[[two.years[2]]] = Crime.raw[Year == two.years[2]]
@@ -87,9 +120,12 @@ for (i in seq_along(urls)) {
   if (!exists('Crime')){
     Crime = Crime.raw
   }else{
-    Crime = merge(Crime, Crime.raw, by = c('Area','Year'))
+    colnames(Crime.raw)
+    Crime2 = 
+      merge.data.table(Crime, Crime.raw, by = colnames(Crime), all= TRUE)
+    setdiff (colnames(Crime), colnames(Crime.raw))
   }
-  }
+}
   
 ```
  
