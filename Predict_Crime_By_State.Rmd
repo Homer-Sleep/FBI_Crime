@@ -17,6 +17,7 @@ library(kableExtra)
 library(tidyr)
 library(readxl)
 library(data.table)
+library(stringi)
 # library(foreign)
 # library(multcomp)
 # library(broom)
@@ -44,6 +45,7 @@ knitr::opts_chunk$set(dev.args = list(png = list(type = "cairo")))
 
 Get dataset from FBI
 ```{r}
+
 # each xls sheet has that year and the previous year. Download 2010, 2012, 2014, 2016. 2018, 2019
 urls = c('https://ucr.fbi.gov/crime-in-the-u.s/2010/crime-in-the-u.s.-2010/tables/10tbl04.xls/output.xls',
          'https://ucr.fbi.gov/crime-in-the-u.s/2012/crime-in-the-u.s.-2012/tables/4tabledatadecoverviewpdf/table_4_crime_in_the_united_states_by_region_geographic_division_and_state_2011-2012.xls/output.xls',
@@ -51,30 +53,44 @@ urls = c('https://ucr.fbi.gov/crime-in-the-u.s/2010/crime-in-the-u.s.-2010/table
          'https://ucr.fbi.gov/crime-in-the-u.s/2016/crime-in-the-u.s.-2016/tables/table-2/table-2.xls/output.xls',
          'https://ucr.fbi.gov/crime-in-the-u.s/2018/crime-in-the-u.s.-2018/tables/table-4/table-4.xls/output.xls',
          'https://ucr.fbi.gov/crime-in-the-u.s/2019/crime-in-the-u.s.-2019/tables/table-4/table-4.xls/output.xls')
-Year.crime = list()
+Crime.datasets = c('2009_2010.xls', '2011_2012.xls', '2013_2014.xls', '2015_2016.xls', '2017_2018.xls', '2019.xls') 
+
  for (i in seq_along(urls)) {
+   if(!file.exists(Crime.datasets[i])){
+   download.file(urls[i], Crime.datasets[i], mode = 'wb') # download xls from FBI website
+   }
+  }
+```
+
+```{r}
+Year.crime = list()
+ for (i in seq_along(Crime.datasets)) {
 
   Crime.raw = NULL
-  ################### if statement to find if file is in WD, if not download######################
-  download.file(urls[i], 'tmp.xls', mode = 'wb') # download xls from FBI website
-  Crime.raw = data.table(read_excel('tmp.xls', skip = 3)) # read into data.table
-  # Crime.raw = data.table(read_excel('10tbl04.xls', skip = 3)) # read into data.table
+  Crime.raw = data.table(read_excel(Crime.datasets[i], skip = 3)) # read into data.table
   # remove empty columns
   Crime.raw = Crime.raw[,which(unlist(lapply(Crime.raw, function(x)!all(is.na(x))))),with=F]
   
   # rename cols to be the same across data sets
-  # fix these names: "Population1" "Violent crime_Per100k" "Murder and\nnonnegligent\nmanslaughter_Per100k" "Forcible rape_Per100k"                         
+  # fix these names: "Population1" "Violent crime_Per100k" "Murder and\nnonnegligent\nmanslaughter_Per100k" "Forcible rape_Per100k"
   pop.fix = startsWith(colnames(Crime.raw), prefix = 'Pop')
   setnames(Crime.raw, colnames(Crime.raw[,..pop.fix]), 'Population')
+  
   pop.fix = startsWith(colnames(Crime.raw), prefix = 'Murder')
   setnames(Crime.raw, colnames(Crime.raw[,..pop.fix]), 'Murder')
+  
   pop.fix = startsWith(colnames(Crime.raw), prefix = 'Violent')
   setnames(Crime.raw, colnames(Crime.raw[,..pop.fix]), 'Violent.Crime')
   
-  ############## i = 3 Rape has two types legacy and revised ######################
+  pop.fix = endsWith(colnames(Crime.raw), suffix = '(revised definition)4')
+  if(sum(pop.fix) == 1){setnames(Crime.raw, colnames(Crime.raw[,..pop.fix]), 'Revised_Rape')}
+  
+  pop.fix = endsWith(colnames(Crime.raw), suffix = '(legacy definition)5')
+  if(sum(pop.fix) == 1){setnames(Crime.raw, colnames(Crime.raw[,..pop.fix]), 'Rape')}
+    
   pop.fix = startsWith(colnames(Crime.raw), prefix = 'Forcible')
-  if(sum(pop.fix) > 1){pop.fix = startsWith(colnames(Crime.raw), prefix = 'Rape')}
-  setnames(Crime.raw, colnames(Crime.raw[,..pop.fix]), 'Rape')
+  if(sum(pop.fix) == 1){setnames(Crime.raw, colnames(Crime.raw[,..pop.fix]), 'Rape')}
+  
   
   #rename columns leading with '..#'
   # find col with Name
@@ -107,23 +123,30 @@ Year.crime = list()
       Crime.raw[ii, 1] = Crime.raw[ii-1, 1]
     }
   }
+    two.years = unique(Crime.raw$Year)
+  if (two.years[1] == '2018'){
+    Crime.raw = Crime.raw[Year == '2019']
+  }    
+
   # change to numeric
   Crime.raw[,2:ncol(Crime.raw)] = as.data.table(sapply(Crime.raw[,2:ncol(Crime.raw)], as.numeric))
   
-  ################# Round each col, I have a function for this ###########################
+  # Round each col,
     Crime.raw %>% mutate_if(is.numeric, ~round(., digit = 2))  
-
-  two.years = unique(Crime.raw$Year)
-  Year.crime[[two.years[1]]] = Crime.raw[Year == two.years[1]]
-  Year.crime[[two.years[2]]] = Crime.raw[Year == two.years[2]]
+  # Make List by year
+  # Year.crime[[two.years[1]]] = Crime.raw[Year == two.years[1]]
+  # Year.crime[[two.years[2]]] = Crime.raw[Year == two.years[2]]
   
-  if (!exists('Crime')){
+  if (i ==1){
     Crime = Crime.raw
   }else{
-    colnames(Crime.raw)
-    Crime2 = 
-      merge.data.table(Crime, Crime.raw, by = colnames(Crime), all= TRUE)
+    if(sum(colnames(Crime.raw) == 'Rape_Per100k') == 0){
+       Crime = merge.data.table(Crime, Crime.raw, by = colnames(Crime.raw), all = TRUE)
+    }else{
+    Crime = merge.data.table(Crime, Crime.raw, by = colnames(Crime), all = TRUE)
     setdiff (colnames(Crime), colnames(Crime.raw))
+    setdiff (colnames(Crime.raw), colnames(Crime))
+    }
   }
 }
   
