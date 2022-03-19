@@ -1,9 +1,17 @@
 ---
-title: "FBI_Crime_Supervised"
+title: "FBI_Crime"
 author: "Dave"
 date: "3/16/2022"
 output: html_document
 ---
+
+## Project discription
+This project will examine the FBI violent crime data from 2009-2019. The data is organized by state, region, and incident rate (e.g., Murder, Rape, Aggravated assault) per 100,000 people. The first step is to pull the crime data from the FBI website for each year. These column names have changed over the years, so these will have to be unified. The next step will look at the Bureau of Labor Statistics data (e.g., unemployment, inflation, wages). I will need to pick variables to merge into the FBI crime data. Once this is merged and cleaned we can begin the machine learning stage. 
+
+First, I will use some unsupervised tools to look over the data. I intend to use a PCA to examine how variables of crime and economics load onto common components. I also intend to do a hierarchical cluster analysis to see if any interesting subgroups emerge. 
+
+The next step is to start the supervised stage. I will examine how population and economic factors predict crime by state and region. If any subgroups or components of interest are discovered in the unsupervised stage they will be incorporated. 
+
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -17,7 +25,7 @@ library(kableExtra)
 library(tidyr)
 library(readxl)
 library(data.table)
-library(stringi)
+# library(stringi)
 # library(foreign)
 # library(multcomp)
 # library(broom)
@@ -43,7 +51,7 @@ knitr::opts_chunk$set(dev.args = list(png = list(type = "cairo")))
 
 
 
-Get dataset from FBI
+### Pull data sets from FBI:
 ```{r}
 
 # each xls sheet has that year and the previous year. Download 2010, 2012, 2014, 2016. 2018, 2019
@@ -62,8 +70,8 @@ Crime.datasets = c('2009_2010.xls', '2011_2012.xls', '2013_2014.xls', '2015_2016
   }
 ```
 
+### Merge Data across years:
 ```{r}
-Year.crime = list()
  for (i in seq_along(Crime.datasets)) {
 
   Crime.raw = NULL
@@ -72,7 +80,6 @@ Year.crime = list()
   Crime.raw = Crime.raw[,which(unlist(lapply(Crime.raw, function(x)!all(is.na(x))))),with=F]
   
   # rename cols to be the same across data sets
-  # fix these names: "Population1" "Violent crime_Per100k" "Murder and\nnonnegligent\nmanslaughter_Per100k" "Forcible rape_Per100k"
   pop.fix = startsWith(colnames(Crime.raw), prefix = 'Pop')
   setnames(Crime.raw, colnames(Crime.raw[,..pop.fix]), 'Population')
   
@@ -152,9 +159,3 @@ Year.crime = list()
   
 ```
  
-I have crime by state, and region in time series (2009 - 2019). 
-Use 2009 - 2017 as training set, 2018 & 2019 as test set. 
-What do I want to predict? 
-Unsupervised first? 
-1) PCA - maybe find another feature to make predictions? 
-2) Herarchical Clusters
