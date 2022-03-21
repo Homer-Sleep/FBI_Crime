@@ -71,7 +71,7 @@ Crime.datasets = c('2009_2010.xls', '2011_2012.xls', '2013_2014.xls', '2015_2016
 ```
 
 ### Merge Data across years:
-```{r}
+```{r, message=FALSE}
  for (i in seq_along(Crime.datasets)) {
 
   Crime.raw = NULL
@@ -80,6 +80,7 @@ Crime.datasets = c('2009_2010.xls', '2011_2012.xls', '2013_2014.xls', '2015_2016
   Crime.raw = Crime.raw[,which(unlist(lapply(Crime.raw, function(x)!all(is.na(x))))),with=F]
   
   # rename cols to be the same across data sets
+  
   pop.fix = startsWith(colnames(Crime.raw), prefix = 'Pop')
   setnames(Crime.raw, colnames(Crime.raw[,..pop.fix]), 'Population')
   
@@ -155,7 +156,62 @@ Crime.datasets = c('2009_2010.xls', '2011_2012.xls', '2013_2014.xls', '2015_2016
     setdiff (colnames(Crime.raw), colnames(Crime))
     }
   }
-}
-  
+ }
+
+rm(Crime.raw)
+setnames(Crime, 'Area', 'State') # change name to match Wage data set. 
+
+
+# revise Rape columns, move 2013-2019 of revised rape into rape column
+Crime[Year %in% c('2013', '2014', '2015', '2016', '2017', '2018', '2019')]$Rape_Per100k = Crime[Year %in% c('2013', '2014', '2015', '2016', '2017', '2018', '2019')]$Revised_Rape_Per100k
+Crime[,Revised_Rape_Per100k := NULL]
+
+# Remove space from column names:
+col.names = colnames(Crime)
+col.names = gsub(' ', '.', col.names)
+col.names = gsub('-', '.', col.names)
+col.names = gsub('_', '.', col.names)
+setnames(Crime, colnames(Crime), col.names)
 ```
  
+### Import data downloaded from Kaggle:
+```{r}
+# minimum wage data:
+Wage.data = fread('Minimum Wage Data.csv')
+# filter out unused years and variables:
+Wage.data = Wage.data[Year %in% c('2009', '2010', '2011', '2012', '2013', '2014', '2015', '2016', '2017', '2018', '2019')]
+Wage.data[,c('Department.Of.Labor.Uncleaned.Data', 'Footnote',  'State.Minimum.Wage', 'State.Minimum.Wage.2020.Dollars',
+             'Federal.Minimum.Wage', 'Federal.Minimum.Wage.2020.Dollars',"Department.Of.Labor.Cleaned.Low.Value",
+             "Department.Of.Labor.Cleaned.Low.Value.2020.Dollars",  "Department.Of.Labor.Cleaned.High.Value",
+             "Department.Of.Labor.Cleaned.High.Value.2020.Dollars", 'Effective.Minimum.Wage'):=NULL]
+
+#merge data sets of Crime and Wage, this will filter out the regions in the Crime data set
+Crime.Wage = merge(Crime, Wage.data, by = c('State', 'Year'))
+Crime.Wage$Year = as.numeric(Crime.Wage$Year)
+
+summary(Crime.Wage)
+
+```
+
+### PCA
+
+```{r}
+# PCA needs rownames and only numeric data, datatable does not do row names
+CrimeWage.df = data.frame(Crime.Wage[Year == '2019'])
+
+# Remove DC
+CrimeWage.df = subset(CrimeWage.df, State != 'District of Columbia')
+# make row names:
+rownames(CrimeWage.df) = CrimeWage.df$State
+#remove State, Year, and CPI.Average
+CrimeWage.df = CrimeWage.df[,-c(1,2,14)]
+summary(CrimeWage.df)
+
+Results = prcomp(CrimeWage.df, scale = TRUE)
+Results$rotation = -1 * Results$rotation
+Results$x = -1 * Results$x
+
+biplot(Results, scale = 0)
+
+```
+
