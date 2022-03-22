@@ -193,6 +193,15 @@ summary(Crime.Wage)
 
 ```
 
+```{r}
+# import State legislative elections 
+
+Legislative = fread("state_legislative_election_results_1971_20121.csv")
+Legislative = Legislative[Year %in% c('2009', '2010', '2011', '2012', '2013', '2014', '2015', '2016', '2017', '2018', '2019')]
+Legislative$State= state.name[match(Legislative$State,state.abb)] # switch state abb to state names
+
+```
+
 ### PCA
 
 ```{r}
@@ -205,6 +214,22 @@ CrimeWage.df = subset(CrimeWage.df, State != 'District of Columbia')
 rownames(CrimeWage.df) = CrimeWage.df$State
 #remove State, Year, and CPI.Average
 CrimeWage.df = CrimeWage.df[,-c(1,2,14)]
+
+summary(CrimeWage.df)
+
+Results = prcomp(CrimeWage.df, scale = TRUE)
+Results$rotation = -1 * Results$rotation
+Results$x = -1 * Results$x
+
+biplot(Results, scale = 0)
+
+```
+
+## Minimize to variables of interest
+
+```{r}
+CrimeWage.df = CrimeWage.df[,c('Population',"Violent.Crime.Per100k","Murder.Per100k",'Robbery.Per100k', "Rape.Per100k",
+                               "Effective.Minimum.Wage.2020.Dollars" )]
 summary(CrimeWage.df)
 
 Results = prcomp(CrimeWage.df, scale = TRUE)
