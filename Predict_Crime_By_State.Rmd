@@ -194,11 +194,12 @@ summary(Crime.Wage)
 ```
 
 ```{r}
-# import State legislative elections 
+# import State President elections 
 # make a variable for each state of % voting R and D. 
 
 StatePres = fread("1976-2020-president.csv")
-Legislative = Legislative[Year %in% c( '2010', '2012')]
+StatePres = StatePres[year %in% c( '2012', '2016', '2020')] # limit to years of FBI crime
+StatePres = group_by(StatePres, year, state, party_simplified)%>% mutate(PercentVotes =candidatevotes / totalvotes)
 setdiff(Legislative[Year == '2010']$State, Legislative[Year == '2012']$State) # AL is missing in 2012
 length(unique(Legislative$State))
 Legislative$State= state.name[match(Legislative$State,state.abb)] # switch state abb to state names
