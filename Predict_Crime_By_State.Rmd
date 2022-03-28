@@ -25,7 +25,8 @@ library(kableExtra)
 library(tidyr)
 library(readxl)
 library(data.table)
-# library(stringi)
+library(stringr)
+library(tools)
 # library(foreign)
 # library(multcomp)
 # library(broom)
@@ -195,14 +196,33 @@ summary(Crime.Wage)
 
 ```{r}
 # import State President elections 
-# make a variable for each state of % voting R and D. 
+
 
 StatePres = fread("1976-2020-president.csv")
 StatePres = StatePres[year %in% c( '2012', '2016', '2020')] # limit to years of FBI crime
-StatePres = group_by(StatePres, year, state, party_simplified)%>% mutate(PercentVotes =candidatevotes / totalvotes)
-setdiff(Legislative[Year == '2010']$State, Legislative[Year == '2012']$State) # AL is missing in 2012
-length(unique(Legislative$State))
-Legislative$State= state.name[match(Legislative$State,state.abb)] # switch state abb to state names
+StatePres = StatePres[state !='DISTRICT OF COLUMBIA']
+# make a variable for each year and state of % voting for each party (R, D, lib, Other). 
+StatePres = group_by(StatePres, year, state, party_simplified)%>% mutate(Percent.Votes =candidatevotes / totalvotes)
+StatePres$Percent.Votes = round(StatePres$Percent.Votes, digits = 2)
+# replace all caps state name with capital first for proper merging
+StatePres$State = state.name[match(StatePres$state_po,state.abb)] # switch state abb to state names
+# fix all caps party names
+StatePres$party_simplified = toTitleCase(tolower(StatePres$party_simplified))
+# rename year to Year and other renames
+setnames(StatePres, c("year", "party_simplified"), c("Year", "Political.Party"))
+StatePres = StatePres[,c('Year', 'State', 'Political.Party', 'Percent.Votes')]
+# remove Other political party
+StatePres = subset(StatePres, Political.Party != 'Other')
+
+# AZ and Mayrland have duplicate party runners with less than 0.01 votes, remove 
+StatePres = subset(StatePres,!Percent.Votes < 0.01)
+
+StatePres = pivot_wider(StatePres, 
+            names_from = Political.Party, 
+            values_from = Percent.Votes)
+
+Crime.Wage.Pres = merge(Crime.Wage[Year %in% c('2012', '2016', '2020')], subset(StatePres, Year %in% c('2016', '2012')),
+                        by = c('Year', 'State'), all = TRUE)
 
 ```
 
@@ -256,3 +276,26 @@ biplot(Results, scale = 0)
 
 ```
 
+## Minimize to variables of interest with Presidential party
+
+```{r, fig.height=8, fig.width=8}
+CrimeWage.df = data.frame(Crime.Wage.Pres[Year == '2012'])
+# Remove non-states
+CrimeWage.df = subset(CrimeWage.df, !State %in% c('District of Columbia', 'Puerto Rico' ))
+# make row names:
+rownames(CrimeWage.df) = CrimeWage.df$State
+#remove State, Year, and CPI.Average
+CrimeWage.df = CrimeWage.df[,-c(1,2,14)]
+
+
+CrimeWage.df = CrimeWage.df[,c('Population',"Violent.Crime.Per100k","Murder.Per100k",'Robbery.Per100k', "Rape.Per100k",
+                               "Effective.Minimum.Wage.2020.Dollars", "Republican" ,"Democrat"  )]
+summary(CrimeWage.df)
+
+Results = prcomp(CrimeWage.df, scale = TRUE)
+Results$rotation = -1 * Results$rotation
+Results$x = -1 * Results$x
+
+biplot(Results, scale = 0)
+
+```
